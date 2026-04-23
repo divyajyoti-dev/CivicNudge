@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Bill,
   PersonaParams,
@@ -10,6 +10,8 @@ import {
   AudioContent,
   SMSContent,
   EmailContent,
+  TwitterContent,
+  VideoContent,
 } from "@/lib/types";
 
 const PLATFORM_LABELS: Record<Platform, string> = {
@@ -18,6 +20,8 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   audio: "Audio",
   sms: "SMS",
   email: "Email",
+  twitter: "Twitter / X",
+  video: "Short Video",
 };
 
 function ContentCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -399,6 +403,193 @@ function EmailTab({ content }: { content: EmailContent }) {
   );
 }
 
+function TwitterTab({ content }: { content: TwitterContent }) {
+  const [tweets, setTweets] = useState(content.thread ?? []);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {tweets.map((tweet, i) => (
+        <ContentCard key={i} title={`Tweet ${i + 1} / ${tweets.length}`}>
+          <EditableBlock value={tweet} rows={3} />
+          <div style={{ textAlign: "right", marginTop: 6 }}>
+            <span style={{
+              fontFamily: "var(--font-dm-mono), monospace", fontSize: 11,
+              color: tweet.length > 240 ? "#dc2626" : "#94a3b8",
+            }}>{tweet.length}/240</span>
+          </div>
+        </ContentCard>
+      ))}
+    </div>
+  );
+}
+
+function AudioTabWithTTS({ content }: { content: AudioContent }) {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [musicUrl, setMusicUrl] = useState<string | null>(null);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [musicLoading, setMusicLoading] = useState(false);
+  const audioRef = useRef<string | null>(null);
+  const musicRef = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    if (audioRef.current) URL.revokeObjectURL(audioRef.current);
+    if (musicRef.current) URL.revokeObjectURL(musicRef.current);
+  }, []);
+
+  async function generateVoice() {
+    setAudioLoading(true);
+    try {
+      const script = [content.intro, content.body, content.cta].filter(Boolean).join("\n\n");
+      const res = await fetch("/api/generate-audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: script }),
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      audioRef.current = url;
+      setAudioUrl(url);
+    } catch {
+      alert("Audio generation failed — check ELEVENLABS_API_KEY in .env.local");
+    } finally {
+      setAudioLoading(false);
+    }
+  }
+
+  async function generateMusic() {
+    setMusicLoading(true);
+    try {
+      const prompt = `Uplifting civic advocacy background music for a campaign about community empowerment`;
+      const res = await fetch("/api/generate-music", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      musicRef.current = url;
+      setMusicUrl(url);
+    } catch {
+      alert("Music generation failed — check ELEVENLABS_API_KEY in .env.local");
+    } finally {
+      setMusicLoading(false);
+    }
+  }
+
+  const btnStyle = (loading: boolean): React.CSSProperties => ({
+    padding: "8px 16px", borderRadius: 8, border: "1.5px solid rgba(0,0,0,0.1)",
+    background: loading ? "#f1f5f9" : "#fff", color: "#0f172a",
+    fontSize: 12, fontWeight: 600, cursor: loading ? "default" : "pointer",
+    letterSpacing: "-0.01em",
+  });
+
+  return (
+    <div>
+      <ContentCard title="Intro"><EditableBlock value={content.intro} rows={3} /></ContentCard>
+      <ContentCard title="Body"><EditableBlock value={content.body} rows={5} /></ContentCard>
+      <ContentCard title="CTA"><EditableBlock value={content.cta} rows={2} /></ContentCard>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
+        <button onClick={generateVoice} disabled={audioLoading} style={btnStyle(audioLoading)}>
+          {audioLoading ? "Generating…" : "🎙 Generate Voice"}
+        </button>
+        <button onClick={generateMusic} disabled={musicLoading} style={btnStyle(musicLoading)}>
+          {musicLoading ? "Generating…" : "🎵 Generate Music"}
+        </button>
+      </div>
+
+      {audioUrl && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Voice Recording</div>
+          <audio controls src={audioUrl} style={{ width: "100%", borderRadius: 8 }} />
+        </div>
+      )}
+      {musicUrl && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Background Music</div>
+          <audio controls src={musicUrl} style={{ width: "100%", borderRadius: 8 }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VideoTab({ content }: { content: VideoContent }) {
+  const [state, setState] = useState<"idle" | "generating" | "done" | "error">("idle");
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
+
+  async function generateVideo() {
+    setState("generating");
+    try {
+      const res = await fetch("/api/generate-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: content.prompt }),
+      });
+      if (!res.ok) throw new Error();
+      const { taskId } = await res.json();
+      poll(taskId);
+    } catch {
+      setState("error");
+    }
+  }
+
+  function poll(taskId: string) {
+    pollRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/generate-video?taskId=${taskId}`);
+        const data = await res.json();
+        if (data.videoUrl) {
+          setVideoUrl(data.videoUrl);
+          setState("done");
+        } else if (data.status === "failed") {
+          setState("error");
+        } else {
+          poll(taskId);
+        }
+      } catch {
+        setState("error");
+      }
+    }, 4000);
+  }
+
+  return (
+    <div>
+      <ContentCard title="Video Prompt">
+        <EditableBlock value={content.prompt} rows={4} />
+      </ContentCard>
+      {state === "idle" && (
+        <button onClick={generateVideo} style={{
+          marginTop: 4, padding: "10px 20px", background: "#0f172a", color: "#fff",
+          border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+        }}>
+          🎬 Generate Video
+        </button>
+      )}
+      {state === "generating" && (
+        <div style={{ marginTop: 12, fontSize: 13, color: "#64748b" }}>
+          <span style={{ display: "inline-block", animation: "spin 1s linear infinite", marginRight: 8 }}>⟳</span>
+          Generating video — this takes 1–2 minutes…
+        </div>
+      )}
+      {state === "done" && videoUrl && (
+        <div style={{ marginTop: 12 }}>
+          <video controls src={videoUrl} style={{ width: "100%", maxWidth: 280, borderRadius: 12 }} />
+        </div>
+      )}
+      {state === "error" && (
+        <div style={{ marginTop: 12, fontSize: 12, color: "#dc2626" }}>
+          Video generation failed — check KLING_API_KEY in .env.local
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ContentReviewProps {
   bill: Bill;
   persona: PersonaParams;
@@ -427,9 +618,11 @@ export default function ContentReview({
       );
     if (platform === "story") return <StoryTab content={pc as StoryContent} />;
     if (platform === "image") return <ImageTab content={pc as ImageContent} />;
-    if (platform === "audio") return <AudioTab content={pc as AudioContent} />;
+    if (platform === "audio") return <AudioTabWithTTS content={pc as AudioContent} />;
     if (platform === "sms") return <SMSTab content={pc as SMSContent} />;
     if (platform === "email") return <EmailTab content={pc as EmailContent} />;
+    if (platform === "twitter") return <TwitterTab content={pc as TwitterContent} />;
+    if (platform === "video") return <VideoTab content={pc as VideoContent} />;
     return null;
   };
 

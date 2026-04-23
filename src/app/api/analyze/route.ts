@@ -13,6 +13,8 @@ export async function POST(req: Request) {
       audio: `"audio": { "intro": "<opening hook>", "body": "<main message, conversational, 45-60 seconds>", "cta": "<closing action step>" }`,
       sms: `"sms": { "text": "<160 char max English>", "text_es": "<160 char max Spanish>" }`,
       email: `"email": { "subject": "<email subject line>", "preview": "<preview text, 1 sentence>", "body": "<full email body, 3-4 paragraphs>" }`,
+      twitter: `"twitter": { "thread": ["<tweet 1 — hook, under 240 chars>", "<tweet 2 — key detail, under 240 chars>", "<tweet 3 — CTA, under 240 chars>"] }`,
+      video: `"video": { "prompt": "<15-second vertical video scene description for text-to-video — vivid, specific, no text overlays>" }`,
     };
 
     const requested = persona.platforms

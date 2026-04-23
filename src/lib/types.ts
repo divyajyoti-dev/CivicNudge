@@ -22,7 +22,7 @@ export interface PersonaParams {
   description: string;
 }
 
-export type Platform = "story" | "image" | "audio" | "sms" | "email";
+export type Platform = "story" | "image" | "audio" | "sms" | "email" | "twitter" | "video";
 
 export interface GeneratedContent {
   relevanceSummary: string;
@@ -32,6 +32,8 @@ export interface GeneratedContent {
     audio?: AudioContent;
     sms?: SMSContent;
     email?: EmailContent;
+    twitter?: TwitterContent;
+    video?: VideoContent;
   };
 }
 
@@ -63,4 +65,12 @@ export interface EmailContent {
   subject: string;
   preview: string;
   body: string;
+}
+
+export interface TwitterContent {
+  thread: string[];
+}
+
+export interface VideoContent {
+  prompt: string;
 }

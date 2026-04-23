@@ -73,6 +73,9 @@ export default function BillQueue({ onSelectBill, synced, setSynced }: BillQueue
   const [totalCount, setTotalCount] = useState<number>(MOCK_BILLS.length);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteSource, setPasteSource] = useState<Bill["source"]>("STATE");
   const pendingBills = useRef<Bill[] | null>(null);
   const animDone = useRef(false);
 
@@ -129,8 +132,78 @@ export default function BillQueue({ onSelectBill, synced, setSynced }: BillQueue
       (b.code && b.code.toLowerCase().includes(search.toLowerCase()))
   );
 
+  function handlePasteSubmit() {
+    if (!pasteText.trim()) return;
+    const lines = pasteText.trim().split("\n");
+    const title = lines[0].slice(0, 120) || "Custom Bill";
+    const bill: Bill = {
+      id: Date.now(),
+      code: "Custom",
+      title,
+      source: pasteSource,
+      score: 5,
+      tag: "Custom",
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      summary: pasteText.trim().slice(0, 200),
+      fullText: pasteText.trim(),
+    };
+    onSelectBill(bill);
+  }
+
   return (
     <div style={{ maxWidth: 700, margin: "0 auto" }}>
+      {/* Paste a custom bill */}
+      <div style={{ marginBottom: 20 }}>
+        <button
+          onClick={() => setShowPaste(p => !p)}
+          style={{
+            fontSize: 13, color: "#64748b", background: "none", border: "1.5px solid rgba(0,0,0,0.09)",
+            borderRadius: 8, padding: "7px 14px", cursor: "pointer", letterSpacing: "-0.01em",
+          }}
+        >
+          {showPaste ? "▲ Cancel" : "+ Paste a custom bill"}
+        </button>
+
+        {showPaste && (
+          <div style={{ marginTop: 12, background: "#fff", borderRadius: 12, padding: "18px 20px", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              {(["STATE", "FEDERAL", "LOCAL"] as Bill["source"][]).map(s => (
+                <button key={s} onClick={() => setPasteSource(s)} style={{
+                  fontSize: 11, padding: "4px 12px", borderRadius: 6, cursor: "pointer",
+                  border: `1.5px solid ${pasteSource === s ? "#0f172a" : "rgba(0,0,0,0.09)"}`,
+                  background: pasteSource === s ? "#0f172a" : "#fff",
+                  color: pasteSource === s ? "#fff" : "#64748b", fontWeight: pasteSource === s ? 600 : 400,
+                }}>{s}</button>
+              ))}
+            </div>
+            <textarea
+              value={pasteText}
+              onChange={e => setPasteText(e.target.value)}
+              placeholder="Paste bill text here — first line becomes the title…"
+              rows={5}
+              style={{
+                width: "100%", padding: "10px 12px", border: "1.5px solid rgba(0,0,0,0.09)",
+                borderRadius: 8, fontSize: 13, resize: "vertical", outline: "none",
+                boxSizing: "border-box", lineHeight: 1.6, color: "#0f172a",
+              }}
+              onFocus={e => (e.target.style.borderColor = "#0f172a")}
+              onBlur={e => (e.target.style.borderColor = "rgba(0,0,0,0.09)")}
+            />
+            <button
+              onClick={handlePasteSubmit}
+              disabled={!pasteText.trim()}
+              style={{
+                marginTop: 10, padding: "9px 20px", background: pasteText.trim() ? "#0f172a" : "#e5e7eb",
+                color: pasteText.trim() ? "#fff" : "#9ca3af", border: "none", borderRadius: 8,
+                fontSize: 13, fontWeight: 600, cursor: pasteText.trim() ? "pointer" : "default",
+              }}
+            >
+              Use this bill →
+            </button>
+          </div>
+        )}
+      </div>
+
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <div style={{ flex: 1, position: "relative" }}>
           <span

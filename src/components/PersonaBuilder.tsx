@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Bill, PersonaParams, Platform } from "@/lib/types";
+import BiasReport from "./BiasReport";
 
 const INCOME_MIN = 0;
 const INCOME_MAX = 200000;
@@ -56,6 +57,8 @@ const PLATFORM_CHIPS: { id: Platform; label: string }[] = [
   { id: "audio", label: "Audio" },
   { id: "sms", label: "SMS" },
   { id: "email", label: "Email" },
+  { id: "twitter", label: "Twitter / X" },
+  { id: "video", label: "Short Video" },
 ];
 
 function IncomeSlider({
@@ -361,6 +364,11 @@ export default function PersonaBuilder({ bill, onGenerate, generating }: Persona
             {bill.fullText}
           </div>
         )}
+      </div>
+
+      {/* Bias report */}
+      <div style={{ marginBottom: 16 }}>
+        <BiasReport billText={bill.fullText} />
       </div>
 
       {/* Persona form card */}
