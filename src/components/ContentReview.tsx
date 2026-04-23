@@ -202,11 +202,32 @@ function StoryTab({ content }: { content: StoryContent }) {
 }
 
 function ImageTab({ content }: { content: ImageContent }) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function generateImage() {
+    setLoading(true);
+    try {
+      const prompt = `${content.headline}. ${content.body}. Bold graphic design, civic advocacy poster, clean layout, vibrant colors.`;
+      const res = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      setImageUrl(URL.createObjectURL(blob));
+    } catch {
+      alert("Image generation failed — please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div>
       <div
         style={{
-          background: "#1e293b",
           borderRadius: 14,
           aspectRatio: "1/1",
           maxWidth: 280,
@@ -214,39 +235,40 @@ function ImageTab({ content }: { content: ImageContent }) {
           display: "flex",
           flexDirection: "column",
           justifyContent: "flex-end",
-          padding: 20,
+          padding: imageUrl ? 0 : 20,
           position: "relative",
           overflow: "hidden",
           boxShadow: "0 8px 28px rgba(0,0,0,0.12)",
+          background: imageUrl ? "transparent" : "#1e293b",
         }}
       >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            opacity: 0.05,
-            backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
-            backgroundSize: "18px 18px",
-          }}
-        />
-        <p
-          style={{
-            margin: 0,
-            color: "#fff",
-            fontSize: 16,
-            fontWeight: 800,
-            lineHeight: 1.3,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          {content.headline}
-        </p>
-        {content.body && (
-          <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.7)", fontSize: 12, lineHeight: 1.5 }}>
-            {content.body}
-          </p>
+        {imageUrl ? (
+          <img src={imageUrl} alt="Generated" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 14 }} />
+        ) : (
+          <>
+            <div style={{ position: "absolute", inset: 0, opacity: 0.05, backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
+            <p style={{ margin: 0, color: "#fff", fontSize: 16, fontWeight: 800, lineHeight: 1.3, letterSpacing: "-0.02em" }}>
+              {content.headline}
+            </p>
+            {content.body && (
+              <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.7)", fontSize: 12, lineHeight: 1.5 }}>
+                {content.body}
+              </p>
+            )}
+          </>
         )}
       </div>
+
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+        <button onClick={generateImage} disabled={loading} style={{
+          padding: "8px 18px", borderRadius: 8, border: "1.5px solid rgba(0,0,0,0.1)",
+          background: loading ? "#f1f5f9" : "#fff", color: "#0f172a",
+          fontSize: 12, fontWeight: 600, cursor: loading ? "default" : "pointer",
+        }}>
+          {loading ? "Generating…" : imageUrl ? "🖼 Regenerate Image" : "🖼 Generate Image"}
+        </button>
+      </div>
+
       {content.caption && (
         <ContentCard title="Caption">
           <EditableBlock value={content.caption} rows={2} />
