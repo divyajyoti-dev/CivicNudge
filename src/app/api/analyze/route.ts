@@ -30,7 +30,6 @@ Requested platforms: ${persona.platforms.join(", ")}
 
 Respond ONLY with valid JSON (no markdown, no explanation):
 {
-  "relevanceScore": <1-10>,
   "relevanceSummary": "<one sentence on why this bill matters to this specific community>",
   "platforms": {
     ${requested}

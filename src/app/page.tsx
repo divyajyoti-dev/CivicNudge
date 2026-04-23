@@ -51,7 +51,7 @@ function StepBar({ step, onBack }: { step: Step; onBack: () => void }) {
                   width: 30,
                   height: 30,
                   borderRadius: 15,
-                  background: isDone ? "#0f172a" : isActive ? "#2563eb" : "#e5e7eb",
+                  background: isDone ? "#0f172a" : isActive ? "#0f172a" : "#e5e7eb",
                   color: isDone || isActive ? "#fff" : "#9ca3af",
                   display: "flex",
                   alignItems: "center",
@@ -157,73 +157,26 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f6f5f2" }}>
-      {/* Sticky nav */}
-      <header
-        style={{
-          background: "#fff",
-          borderBottom: "1px solid rgba(0,0,0,0.06)",
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 980,
-            margin: "0 auto",
-            padding: "14px 32px",
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
-          {/* Logo */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 180 }}>
-            <div
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 8,
-                background: "#0f172a",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 14,
-              }}
-            >
-              🗳️
-            </div>
+      {/* Page content */}
+      <main style={{ maxWidth: 980, margin: "0 auto", padding: "44px 32px 72px" }}>
+        {/* Top bar: logo left, step bar center */}
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 40 }}>
+          <div style={{ minWidth: 180 }}>
             <span style={{ fontWeight: 800, fontSize: 17, color: "#0f172a", letterSpacing: "-0.03em" }}>
               CivicNudge
             </span>
           </div>
-
-          {/* Centered step bar */}
           <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
             <StepBar step={step} onBack={handleBack} />
           </div>
-
-          {/* Right side */}
-          <div style={{ minWidth: 180, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+          <div style={{ minWidth: 180, display: "flex", justifyContent: "flex-end" }}>
             {error && (
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "#b45309",
-                  background: "#fffbeb",
-                  border: "1px solid #fde68a",
-                  borderRadius: 6,
-                  padding: "3px 10px",
-                }}
-              >
+              <span style={{ fontSize: 12, color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "4px 12px" }}>
                 {error}
               </span>
             )}
           </div>
         </div>
-      </header>
-
-      {/* Page content */}
-      <main style={{ maxWidth: 980, margin: "0 auto", padding: "44px 32px 72px" }}>
         {/* Step heading */}
         <div style={{ marginBottom: 32, textAlign: "center" }}>
           {step === "dashboard" && (

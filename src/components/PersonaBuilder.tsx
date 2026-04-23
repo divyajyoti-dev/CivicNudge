@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Bill, PersonaParams, Platform } from "@/lib/types";
 
 const INCOME_MIN = 0;
@@ -21,7 +21,7 @@ const PERSONA_FIELDS = [
   {
     id: "familyType",
     label: "Family Type",
-    chips: ["Single", "Single Parent", "Couple", "Family with kids", "Multigenerational", "Empty Nester"],
+    chips: ["Single", "Single Parent", "Couple", "Family with kids", "Multigenerational"],
   },
   {
     id: "occupation",
@@ -92,9 +92,9 @@ function IncomeSlider({
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>{formatIncome(low)}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{formatIncome(low)}</span>
         <span style={{ fontSize: 12, color: "#94a3b8" }}>Income Range</span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>{formatIncome(high)}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{formatIncome(high)}</span>
       </div>
       <div style={{ position: "relative", height: 28, display: "flex", alignItems: "center" }}>
         <div style={{ position: "absolute", width: "100%", height: 4, background: "#e5e7eb", borderRadius: 2 }} />
@@ -102,7 +102,7 @@ function IncomeSlider({
           style={{
             position: "absolute",
             height: 4,
-            background: "#2563eb",
+            background: "#0f172a",
             borderRadius: 2,
             left: `${pct(low)}%`,
             width: `${pct(high) - pct(low)}%`,
@@ -139,10 +139,10 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
       onClick={onClick}
       style={{
         padding: "7px 15px",
-        borderRadius: 20,
-        border: `1.5px solid ${active ? "#2563eb" : "rgba(0,0,0,0.09)"}`,
-        background: active ? "#eff6ff" : "#fff",
-        color: active ? "#1d4ed8" : "#475569",
+        borderRadius: 8,
+        border: `1.5px solid ${active ? "#0f172a" : "rgba(0,0,0,0.09)"}`,
+        background: active ? "#f1f5f9" : "#fff",
+        color: active ? "#0f172a" : "#475569",
         fontSize: 13,
         fontWeight: active ? 600 : 400,
         cursor: "pointer",
@@ -194,7 +194,7 @@ function ToggleSwitch({
       <span
         style={{
           fontSize: 13,
-          color: !value ? "#1d4ed8" : "#94a3b8",
+          color: !value ? "#0f172a" : "#94a3b8",
           fontWeight: !value ? 600 : 400,
           transition: "color 0.2s",
         }}
@@ -207,7 +207,7 @@ function ToggleSwitch({
           width: 44,
           height: 24,
           borderRadius: 12,
-          background: value ? "#2563eb" : "#e2e8f0",
+          background: value ? "#0f172a" : "#e2e8f0",
           position: "relative",
           cursor: "pointer",
           transition: "background 0.2s",
@@ -231,7 +231,7 @@ function ToggleSwitch({
       <span
         style={{
           fontSize: 13,
-          color: value ? "#1d4ed8" : "#94a3b8",
+          color: value ? "#0f172a" : "#94a3b8",
           fontWeight: value ? 600 : 400,
           transition: "color 0.2s",
         }}
@@ -242,96 +242,6 @@ function ToggleSwitch({
   );
 }
 
-function BillModal({ bill, onClose }: { bill: Bill; onClose: () => void }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.4)",
-        zIndex: 200,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: "#fff",
-          borderRadius: 18,
-          padding: "32px 36px",
-          maxWidth: 620,
-          width: "100%",
-          maxHeight: "80vh",
-          overflowY: "auto",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div>
-            <div
-              style={{
-                fontFamily: "var(--font-dm-mono), monospace",
-                fontSize: 11,
-                color: "#94a3b8",
-                marginBottom: 4,
-              }}
-            >
-              {bill.code}
-            </div>
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: 20,
-                color: "#0f172a",
-                letterSpacing: "-0.03em",
-                lineHeight: 1.3,
-              }}
-            >
-              {bill.title}
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "#f1f5f9",
-              border: "none",
-              borderRadius: 8,
-              width: 32,
-              height: 32,
-              cursor: "pointer",
-              fontSize: 16,
-              color: "#64748b",
-              flexShrink: 0,
-              marginLeft: 16,
-            }}
-          >
-            ✕
-          </button>
-        </div>
-        <div
-          style={{
-            fontSize: 14,
-            color: "#374151",
-            lineHeight: 1.85,
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {bill.fullText}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 interface PersonaBuilderProps {
   bill: Bill;
@@ -348,7 +258,7 @@ export default function PersonaBuilder({ bill, onGenerate, generating }: Persona
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [freeform, setFreeform] = useState("");
   const [actionBias, setActionBias] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const toggleChip = (fieldId: string, chip: string) => {
     setSelections(prev => ({
@@ -397,46 +307,60 @@ export default function PersonaBuilder({ bill, onGenerate, generating }: Persona
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", paddingBottom: 100 }}>
-      {/* Selected bill bar */}
+      {/* Selected bill bar — click to expand full text */}
       <div
+        onClick={() => setExpanded(prev => !prev)}
         style={{
           background: "#fff",
           borderRadius: 14,
           padding: "16px 20px",
           marginBottom: 24,
           boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
-          display: "flex",
-          gap: 16,
-          alignItems: "center",
+          cursor: "pointer",
         }}
       >
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              fontFamily: "var(--font-dm-mono), monospace",
-              fontSize: 11,
-              color: "#94a3b8",
-              marginBottom: 2,
-            }}
-          >
-            {bill.code}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div
+              style={{
+                fontFamily: "var(--font-dm-mono), monospace",
+                fontSize: 11,
+                color: "#94a3b8",
+                marginBottom: 2,
+              }}
+            >
+              {bill.code}
+            </div>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: 14,
+                color: "#0f172a",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {bill.title}
+            </div>
           </div>
-          <div
-            onClick={() => setShowModal(true)}
-            style={{
-              fontWeight: 700,
-              fontSize: 14,
-              color: "#2563eb",
-              letterSpacing: "-0.02em",
-              cursor: "pointer",
-              textDecoration: "underline",
-              textDecorationStyle: "dotted",
-              textUnderlineOffset: 3,
-            }}
-          >
-            {bill.title}
-          </div>
+          <span style={{ fontSize: 12, color: "#94a3b8", flexShrink: 0, marginLeft: 16 }}>
+            {expanded ? "▲" : "▼"}
+          </span>
         </div>
+        {expanded && (
+          <div
+            style={{
+              marginTop: 14,
+              paddingTop: 14,
+              borderTop: "1px solid rgba(0,0,0,0.06)",
+              fontSize: 13,
+              color: "#374151",
+              lineHeight: 1.8,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {bill.fullText}
+          </div>
+        )}
       </div>
 
       {/* Persona form card */}
@@ -457,7 +381,7 @@ export default function PersonaBuilder({ bill, onGenerate, generating }: Persona
             onChange={e => setLocation(e.target.value)}
             placeholder="e.g. East Oakland, CA or California"
             style={inputStyle}
-            onFocus={e => (e.target.style.borderColor = "#2563eb")}
+            onFocus={e => (e.target.style.borderColor = "#0f172a")}
             onBlur={e => (e.target.style.borderColor = "rgba(0,0,0,0.09)")}
           />
         </div>
@@ -499,7 +423,7 @@ export default function PersonaBuilder({ bill, onGenerate, generating }: Persona
               ...inputStyle,
               resize: "vertical",
               lineHeight: 1.6,
-              borderColor: freeform ? "#2563eb" : "rgba(0,0,0,0.09)",
+              borderColor: freeform ? "#0f172a" : "rgba(0,0,0,0.09)",
             }}
           />
         </div>
@@ -575,7 +499,7 @@ export default function PersonaBuilder({ bill, onGenerate, generating }: Persona
               padding: "15px 40px",
               maxWidth: 520,
               width: "100%",
-              background: !canGenerate ? "#e5e7eb" : generating ? "#1e40af" : "#2563eb",
+              background: !canGenerate ? "#e5e7eb" : generating ? "#374151" : "#0f172a",
               color: !canGenerate ? "#9ca3af" : "#fff",
               border: "none",
               borderRadius: 12,
@@ -587,7 +511,7 @@ export default function PersonaBuilder({ bill, onGenerate, generating }: Persona
               justifyContent: "center",
               gap: 12,
               letterSpacing: "-0.02em",
-              boxShadow: canGenerate && !generating ? "0 4px 20px rgba(37,99,235,0.32)" : "none",
+              boxShadow: canGenerate && !generating ? "0 4px 20px rgba(0,0,0,0.2)" : "none",
               transition: "all 0.2s",
             }}
           >
@@ -606,7 +530,7 @@ export default function PersonaBuilder({ bill, onGenerate, generating }: Persona
                     fontWeight: 400,
                     background: "rgba(255,255,255,0.15)",
                     padding: "3px 10px",
-                    borderRadius: 20,
+                    borderRadius: 8,
                   }}
                 >
                   Powered by Claude
@@ -622,7 +546,6 @@ export default function PersonaBuilder({ bill, onGenerate, generating }: Persona
         </div>
       </div>
 
-      {showModal && <BillModal bill={bill} onClose={() => setShowModal(false)} />}
     </div>
   );
 }

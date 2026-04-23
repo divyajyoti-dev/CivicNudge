@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Bill } from "@/lib/types";
 import { setCachedBills } from "@/lib/bills-cache";
+import { BILLS as MOCK_BILLS } from "@/lib/mock-data";
 
 let idCounter = 100;
 function nextId() { return ++idCounter; }
@@ -85,12 +86,12 @@ async function fetchCongress(): Promise<Bill[]> {
 async function fetchLegistar(): Promise<Bill[]> {
   try {
     const res = await fetch(
-      "https://webapi.legistar.com/v1/clients/Berkeley/matters?$top=20&$orderby=MatterLastModifiedUtc+desc",
+      "https://webapi.legistar.com/v1/BerkeleyCA/matters?$top=20&$orderby=MatterLastModifiedUtc+desc",
       { next: { revalidate: 0 } }
     );
     if (!res.ok) return [];
     const data = await res.json();
-    return data.map(normalizeLegistar);
+    return Array.isArray(data) ? data.map(normalizeLegistar) : [];
   } catch {
     return [];
   }
@@ -103,12 +104,15 @@ export async function POST() {
     fetchLegistar(),
   ]);
 
-  const bills = [...openStates, ...congress, ...legistar];
+  const fetched = [...openStates, ...congress, ...legistar];
+  // Fall back to curated mock bills when no API keys are configured
+  const bills = fetched.length > 0 ? fetched : MOCK_BILLS;
   setCachedBills(bills);
 
   return NextResponse.json({
     count: bills.length,
     bills,
+    usingMockData: fetched.length === 0,
     sources: {
       state: openStates.length,
       federal: congress.length,

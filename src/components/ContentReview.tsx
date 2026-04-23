@@ -54,7 +54,7 @@ function EditableBlock({ value: init, rows = 3 }: { value: string; rows?: number
         onBlur={() => setEditing(false)}
         style={{
           width: "100%",
-          border: "1.5px solid #2563eb",
+          border: "1.5px solid #0f172a",
           borderRadius: 8,
           padding: "8px 10px",
           fontSize: 13,
@@ -298,7 +298,7 @@ function SMSTab({ content }: { content: SMSContent }) {
             {current ? (
               <div
                 style={{
-                  background: "#2563eb",
+                  background: "#0f172a",
                   color: "#fff",
                   borderRadius: "16px 16px 4px 16px",
                   padding: "10px 13px",
@@ -356,10 +356,10 @@ function SMSTab({ content }: { content: SMSContent }) {
               onClick={() => setLang(l)}
               style={{
                 padding: "6px 16px",
-                borderRadius: 20,
-                border: `1.5px solid ${lang === l ? "#2563eb" : "rgba(0,0,0,0.1)"}`,
-                background: lang === l ? "#eff6ff" : "#fff",
-                color: lang === l ? "#1d4ed8" : "#64748b",
+                borderRadius: 8,
+                border: `1.5px solid ${lang === l ? "#0f172a" : "rgba(0,0,0,0.1)"}`,
+                background: lang === l ? "#f1f5f9" : "#fff",
+                color: lang === l ? "#0f172a" : "#64748b",
                 fontSize: 12,
                 fontWeight: lang === l ? 600 : 400,
                 cursor: "pointer",

@@ -25,7 +25,6 @@ export interface PersonaParams {
 export type Platform = "story" | "image" | "audio" | "sms" | "email";
 
 export interface GeneratedContent {
-  relevanceScore: number;
   relevanceSummary: string;
   platforms: {
     story?: StoryContent;

@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bill } from "@/lib/types";
-import { BILLS } from "@/lib/mock-data";
+import { BILLS as MOCK_BILLS } from "@/lib/mock-data";
 import BillCard from "./BillCard";
 
 const SYNC_STEPS = [
@@ -9,7 +9,7 @@ const SYNC_STEPS = [
   { label: "Fetching OpenStates API" },
   { label: "Fetching Congress.gov" },
   { label: "Fetching Berkeley Legistar" },
-  { label: "AI triage complete — 5 bills flagged" },
+  { label: "AI triage complete — bills flagged" },
 ];
 
 function SyncProgress({ onDone }: { onDone: () => void }) {
@@ -56,21 +56,6 @@ function SyncProgress({ onDone }: { onDone: () => void }) {
             {i < step ? "✓" : "○"}
           </span>
           <span style={{ color: i < step ? "#e2e8f0" : "#334155" }}>{s.label}</span>
-          {i === SYNC_STEPS.length - 1 && i < step && (
-            <span
-              style={{
-                marginLeft: "auto",
-                fontSize: 10,
-                background: "#dc2626",
-                color: "#fff",
-                padding: "2px 8px",
-                borderRadius: 20,
-                fontWeight: 700,
-              }}
-            >
-              5 FLAGGED
-            </span>
-          )}
         </div>
       ))}
     </div>
@@ -84,14 +69,64 @@ interface BillQueueProps {
 }
 
 export default function BillQueue({ onSelectBill, synced, setSynced }: BillQueueProps) {
+  const [bills, setBills] = useState<Bill[]>(MOCK_BILLS);
+  const [totalCount, setTotalCount] = useState<number>(MOCK_BILLS.length);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
+  const pendingBills = useRef<Bill[] | null>(null);
+  const animDone = useRef(false);
 
-  const filtered = BILLS.filter(
+  // Auto-sync on first load
+  useEffect(() => {
+    if (!synced) startSync();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function startSync() {
+    if (syncing || synced) return;
+    setSyncing(true);
+    animDone.current = false;
+    pendingBills.current = null;
+
+    // Fire real API call in parallel with the animation
+    fetch("/api/bills/sync", { method: "POST" })
+      .then(r => r.json())
+      .then(data => {
+        const fetched: Bill[] = data.bills ?? [];
+        if (animDone.current) {
+          // Animation already finished — apply immediately
+          if (fetched.length) {
+            setBills(fetched);
+            setTotalCount(data.count ?? fetched.length);
+          }
+          setSyncing(false);
+          setSynced(true);
+        } else {
+          // Animation still running — stash for when it finishes
+          pendingBills.current = fetched.length ? fetched : null;
+          if (fetched.length) setTotalCount(data.count ?? fetched.length);
+        }
+      })
+      .catch(() => {
+        // API failed — animation will still finish, just keep current bills
+        pendingBills.current = null;
+      });
+  }
+
+  function handleAnimationDone() {
+    animDone.current = true;
+    if (pendingBills.current) {
+      setBills(pendingBills.current);
+    }
+    setSyncing(false);
+    setSynced(true);
+  }
+
+  const filtered = bills.filter(
     b =>
       !search ||
       b.title.toLowerCase().includes(search.toLowerCase()) ||
-      b.code.toLowerCase().includes(search.toLowerCase())
+      (b.code && b.code.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -128,12 +163,12 @@ export default function BillQueue({ onSelectBill, synced, setSynced }: BillQueue
               boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
               transition: "border-color 0.15s",
             }}
-            onFocus={e => (e.target.style.borderColor = "#2563eb")}
+            onFocus={e => (e.target.style.borderColor = "#0f172a")}
             onBlur={e => (e.target.style.borderColor = "rgba(0,0,0,0.08)")}
           />
         </div>
         <button
-          onClick={() => !syncing && !synced && setSyncing(true)}
+          onClick={startSync}
           style={{
             padding: "11px 20px",
             background: synced ? "#f1f5f9" : "#0f172a",
@@ -153,14 +188,7 @@ export default function BillQueue({ onSelectBill, synced, setSynced }: BillQueue
         </button>
       </div>
 
-      {syncing && !synced && (
-        <SyncProgress
-          onDone={() => {
-            setSyncing(false);
-            setSynced(true);
-          }}
-        />
-      )}
+      {syncing && <SyncProgress onDone={handleAnimationDone} />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {filtered.map(bill => (
@@ -174,7 +202,7 @@ export default function BillQueue({ onSelectBill, synced, setSynced }: BillQueue
       </div>
 
       <div style={{ marginTop: 24, textAlign: "center", fontSize: 12, color: "#cbd5e1" }}>
-        {filtered.length} of 150 bills · sorted by relevance
+        {filtered.length} of {totalCount} bills · sorted by relevance
       </div>
     </div>
   );
