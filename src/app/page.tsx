@@ -1,198 +1,277 @@
 "use client";
-import { useState } from "react";
-import { Bill, GeneratedCampaign, PersonaParams } from "@/lib/types";
-import BillInput from "@/components/BillInput";
-import BiasReport from "@/components/BiasReport";
+import { useState, useEffect, Fragment } from "react";
+import { Bill, PersonaParams, GeneratedContent } from "@/lib/types";
+import BillQueue from "@/components/BillQueue";
 import PersonaBuilder from "@/components/PersonaBuilder";
 import ContentReview from "@/components/ContentReview";
 
-const DEFAULT_PERSONA: PersonaParams = {
-  occupation: [],
-  occupationOther: "",
-  familyType: [],
-  familyTypeOther: "",
-  location: "",
-  demographicFocus: "",
-  naturalLanguage: "",
-  actionBias: "action",
-  contentMode: "educate",
-  platforms: ["instagram", "sms"],
-};
+type Step = "dashboard" | "persona" | "review";
 
-type Step = 1 | 2 | 3;
+const STEPS: { id: Step; num: number; label: string }[] = [
+  { id: "dashboard", num: 1, label: "Pick a Bill" },
+  { id: "persona", num: 2, label: "Target Audience" },
+  { id: "review", num: 3, label: "Review & Distribute" },
+];
 
-function StepBar({ current }: { current: Step }) {
-  const steps = [
-    { n: 1, label: "Add Bill" },
-    { n: 2, label: "Your Community" },
-    { n: 3, label: "Review" },
-  ];
+function StepBar({ step, onBack }: { step: Step; onBack: () => void }) {
+  const currentIdx = STEPS.findIndex(s => s.id === step);
+  const canGoBack = currentIdx > 0;
+
   return (
-    <div className="flex items-center gap-0 mb-8">
-      {steps.map((s, i) => (
-        <div key={s.n} className="flex items-center flex-1">
-          <div className={`flex items-center gap-2 ${current >= s.n ? "text-indigo-600" : "text-slate-300"}`}>
-            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${
-              current > s.n
-                ? "bg-indigo-600 border-indigo-600 text-white"
-                : current === s.n
-                ? "border-indigo-600 text-indigo-600"
-                : "border-slate-200 text-slate-300"
-            }`}>
-              {current > s.n ? "✓" : s.n}
-            </span>
-            <span className={`text-sm font-medium hidden sm:block ${current >= s.n ? "text-slate-700" : "text-slate-400"}`}>
-              {s.label}
-            </span>
-          </div>
-          {i < steps.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-3 transition-colors ${current > s.n ? "bg-indigo-600" : "bg-slate-200"}`} />
-          )}
-        </div>
-      ))}
+    <div style={{ display: "flex", alignItems: "center" }}>
+      {canGoBack ? (
+        <button
+          onClick={onBack}
+          style={{
+            background: "none",
+            border: "1.5px solid rgba(0,0,0,0.1)",
+            borderRadius: 8,
+            padding: "5px 12px",
+            fontSize: 12,
+            color: "#64748b",
+            cursor: "pointer",
+            letterSpacing: "-0.01em",
+            marginRight: 20,
+            whiteSpace: "nowrap",
+          }}
+        >
+          ← Back
+        </button>
+      ) : (
+        <div style={{ width: 68, marginRight: 20 }} />
+      )}
+      {STEPS.map((s, i) => {
+        const isActive = s.id === step;
+        const isDone = currentIdx > i;
+        return (
+          <Fragment key={s.id}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  background: isDone ? "#0f172a" : isActive ? "#2563eb" : "#e5e7eb",
+                  color: isDone || isActive ? "#fff" : "#9ca3af",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: isDone ? 13 : 12,
+                  fontWeight: 700,
+                  transition: "all 0.3s",
+                }}
+              >
+                {isDone ? "✓" : s.num}
+              </div>
+              <span
+                style={{
+                  fontSize: 12,
+                  whiteSpace: "nowrap",
+                  letterSpacing: "-0.01em",
+                  color: isActive ? "#0f172a" : isDone ? "#64748b" : "#9ca3af",
+                  fontWeight: isActive ? 600 : 400,
+                  transition: "color 0.3s",
+                }}
+              >
+                {s.label}
+              </span>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div
+                style={{
+                  width: 72,
+                  height: 1.5,
+                  marginBottom: 18,
+                  flexShrink: 0,
+                  background: isDone ? "#0f172a" : "#e5e7eb",
+                  transition: "background 0.4s",
+                }}
+              />
+            )}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }
 
 export default function Home() {
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>("dashboard");
   const [bill, setBill] = useState<Bill | null>(null);
-  const [billText, setBillText] = useState("");
-  const [persona, setPersona] = useState<PersonaParams>(DEFAULT_PERSONA);
-  const [loading, setLoading] = useState(false);
-  const [campaign, setCampaign] = useState<GeneratedCampaign | null>(null);
+  const [persona, setPersona] = useState<PersonaParams | null>(null);
+  const [content, setContent] = useState<GeneratedContent | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [approved, setApproved] = useState(false);
+  const [synced, setSynced] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleBillReady(b: Bill, rawText?: string) {
-    setBill(b);
-    setBillText(rawText ?? b.fullText);
-    setStep(2);
-    setCampaign(null);
-    setError(null);
-  }
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("cn_state") || "{}");
+      if (saved.step) setStep(saved.step);
+      if (saved.bill) setBill(saved.bill);
+      if (saved.persona) setPersona(saved.persona);
+      if (saved.content) setContent(saved.content);
+    } catch {}
+  }, []);
 
-  async function handleGenerate() {
-    if (!bill) return;
-    setLoading(true);
+  useEffect(() => {
+    localStorage.setItem("cn_state", JSON.stringify({ step, bill, persona, content }));
+  }, [step, bill, persona, content]);
+
+  const handleSelectBill = (b: Bill) => {
+    setBill(b);
+    setStep("persona");
+  };
+
+  const handleGenerate = async (p: PersonaParams) => {
+    setPersona(p);
+    setGenerating(true);
     setError(null);
-    setCampaign(null);
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bill, persona }),
+        body: JSON.stringify({ bill, persona: p }),
       });
       if (!res.ok) throw new Error("API error");
-      const data = await res.json();
-      setCampaign(data);
-      setStep(3);
+      const result = await res.json();
+      setContent(result);
+      setStep("review");
     } catch {
-      setError("Something went wrong. Check your API key in .env.local and restart the server.");
+      setError("API error — check ANTHROPIC_API_KEY in .env.local");
     } finally {
-      setLoading(false);
+      setGenerating(false);
     }
-  }
+  };
+
+  const handleBack = () => {
+    if (step === "review") {
+      setStep("persona");
+      setApproved(false);
+    } else if (step === "persona") {
+      setStep("dashboard");
+      setBill(null);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-100 px-6 py-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-              CN
+    <div style={{ minHeight: "100vh", background: "#f6f5f2" }}>
+      {/* Sticky nav */}
+      <header
+        style={{
+          background: "#fff",
+          borderBottom: "1px solid rgba(0,0,0,0.06)",
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 980,
+            margin: "0 auto",
+            padding: "14px 32px",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          {/* Logo */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 180 }}>
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 8,
+                background: "#0f172a",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 14,
+              }}
+            >
+              🗳️
             </div>
-            <div>
-              <h1 className="font-bold text-slate-900 leading-none text-base">CivicNudge</h1>
-              <p className="text-xs text-slate-400">Policy → People</p>
-            </div>
+            <span style={{ fontWeight: 800, fontSize: 17, color: "#0f172a", letterSpacing: "-0.03em" }}>
+              CivicNudge
+            </span>
           </div>
-          <span className="text-xs text-slate-400 hidden sm:block">Powered by Claude Haiku</span>
+
+          {/* Centered step bar */}
+          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+            <StepBar step={step} onBack={handleBack} />
+          </div>
+
+          {/* Right side */}
+          <div style={{ minWidth: 180, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+            {error && (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "#b45309",
+                  background: "#fffbeb",
+                  border: "1px solid #fde68a",
+                  borderRadius: 6,
+                  padding: "3px 10px",
+                }}
+              >
+                {error}
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-8">
-        <StepBar current={step} />
-
-        {/* Step 1: Add Bill */}
-        <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-4 ${step !== 1 && bill ? "opacity-60" : ""}`}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-slate-800 text-lg">① Add a Bill</h2>
-            {bill && step !== 1 && (
-              <button
-                onClick={() => { setStep(1); setCampaign(null); }}
-                className="text-sm text-indigo-600 hover:underline"
-              >
-                Change
-              </button>
-            )}
-          </div>
-
-          {bill && step !== 1 ? (
-            <div className="flex items-start gap-3">
-              <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                bill.source === "STATE" ? "bg-blue-100 text-blue-700" :
-                bill.source === "FEDERAL" ? "bg-purple-100 text-purple-700" :
-                "bg-emerald-100 text-emerald-700"
-              }`}>{bill.source}</span>
-              <p className="text-sm text-slate-700 font-medium leading-snug">{bill.title}</p>
-            </div>
-          ) : (
-            <BillInput onBillReady={handleBillReady} />
+      {/* Page content */}
+      <main style={{ maxWidth: 980, margin: "0 auto", padding: "44px 32px 72px" }}>
+        {/* Step heading */}
+        <div style={{ marginBottom: 32, textAlign: "center" }}>
+          {step === "dashboard" && (
+            <>
+              <h1 style={{ margin: "0 0 6px", fontSize: 28, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.03em" }}>
+                Pick a Bill
+              </h1>
+              <p style={{ margin: 0, color: "#64748b", fontSize: 15 }}>
+                Select a bill from the queue to generate a targeted campaign
+              </p>
+            </>
+          )}
+          {step === "persona" && bill && (
+            <>
+              <h1 style={{ margin: "0 0 6px", fontSize: 28, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.03em" }}>
+                Target Your Audience
+              </h1>
+              <p style={{ margin: 0, color: "#64748b", fontSize: 15 }}>
+                Who is your target audience?
+              </p>
+            </>
+          )}
+          {step === "review" && (
+            <>
+              <h1 style={{ margin: "0 0 6px", fontSize: 28, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.03em" }}>
+                Review & Distribute
+              </h1>
+              <p style={{ margin: 0, color: "#64748b", fontSize: 15 }}>
+                Edit content before approving — all text is inline-editable
+              </p>
+            </>
           )}
         </div>
 
-        {/* Bias report — shown between steps 1 and 2 for uploaded/pasted docs */}
-        {step >= 2 && billText && bill?.id.startsWith("uploaded-") && (
-          <div className="mb-4">
-            <BiasReport billText={billText} />
-          </div>
+        {step === "dashboard" && (
+          <BillQueue onSelectBill={handleSelectBill} synced={synced} setSynced={setSynced} />
         )}
-
-        {/* Step 2: Community */}
-        {step >= 2 && (
-          <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-4 ${step !== 2 && campaign ? "opacity-60" : ""}`}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-slate-800 text-lg">② Your Community</h2>
-              {campaign && step !== 2 && (
-                <button
-                  onClick={() => { setStep(2); setCampaign(null); setError(null); }}
-                  className="text-sm text-indigo-600 hover:underline"
-                >
-                  Change
-                </button>
-              )}
-            </div>
-            {step === 2 || !campaign ? (
-              <>
-                <PersonaBuilder
-                  persona={persona}
-                  onChange={setPersona}
-                  onGenerate={handleGenerate}
-                  loading={loading}
-                />
-                {error && (
-                  <div className="mt-3 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
-                    {error}
-                  </div>
-                )}
-              </>
-            ) : null}
-          </div>
+        {step === "persona" && bill && (
+          <PersonaBuilder bill={bill} onGenerate={handleGenerate} generating={generating} />
         )}
-
-        {/* Step 3: Review */}
-        {step === 3 && campaign && bill && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            <h2 className="font-bold text-slate-800 text-lg mb-4">③ Review Campaign</h2>
-            <ContentReview
-              bill={bill}
-              campaign={campaign}
-              platforms={persona.platforms}
-              contentMode={persona.contentMode}
-              onApprove={() => {}}
-            />
-          </div>
+        {step === "review" && bill && persona && content && (
+          <ContentReview
+            bill={bill}
+            persona={persona}
+            content={content}
+            onApprove={() => setApproved(true)}
+            approved={approved}
+          />
         )}
       </main>
     </div>

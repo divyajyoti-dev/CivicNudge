@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 import { Bill } from "@/lib/types";
 import { setCachedBills } from "@/lib/bills-cache";
 
+let idCounter = 100;
+function nextId() { return ++idCounter; }
+
 function normalizeOpenStates(item: Record<string, unknown>): Bill {
   return {
-    id: `os-${item.id}`,
+    id: nextId(),
+    code: String(item.identifier ?? ""),
     title: `${item.identifier}: ${item.title}`,
     source: "STATE",
+    score: 5,
+    tag: "Legislation",
     date: (item.updated_at as string)?.slice(0, 10) ?? "",
     summary: (item.abstract as string) ?? (item.title as string) ?? "",
     fullText: (item.abstract as string) ?? (item.title as string) ?? "",
@@ -18,9 +24,12 @@ function normalizeCongress(item: Record<string, unknown>): Bill {
   const type = item.type as string;
   const title = item.title as string;
   return {
-    id: `cg-${type}${num}`,
+    id: nextId(),
+    code: `${type} ${num}`,
     title: `${type} ${num}: ${title}`,
     source: "FEDERAL",
+    score: 5,
+    tag: "Legislation",
     date: (item.updateDate as string)?.slice(0, 10) ?? "",
     summary: title,
     fullText: title,
@@ -29,9 +38,12 @@ function normalizeCongress(item: Record<string, unknown>): Bill {
 
 function normalizeLegistar(item: Record<string, unknown>): Bill {
   return {
-    id: `bk-${item.MatterId}`,
+    id: nextId(),
+    code: `Berkeley CC`,
     title: `Berkeley: ${item.MatterName ?? item.MatterTitle}`,
     source: "LOCAL",
+    score: 5,
+    tag: "Local",
     date: (item.MatterLastModifiedUtc as string)?.slice(0, 10) ?? "",
     summary: (item.MatterTitle as string) ?? "",
     fullText: (item.MatterTitle as string) ?? "",

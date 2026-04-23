@@ -1,6 +1,12 @@
 "use client";
 import { useState } from "react";
-import { SYNC_STEPS } from "@/lib/mock-data";
+const SYNC_STEPS = [
+  { label: "Initializing sync engine…", duration: 600 },
+  { label: "Fetching OpenStates API…", duration: 700 },
+  { label: "Fetching Congress.gov…", duration: 500 },
+  { label: "Running AI triage…", duration: 900 },
+  { label: "5 high-priority bills flagged", duration: 400 },
+];
 
 export default function SyncButton({ onComplete }: { onComplete: () => void }) {
   const [state, setState] = useState<"idle" | "running" | "done">("idle");

@@ -73,9 +73,12 @@ export default function BillInput({
   function selectLibraryBill(lb: LibraryBill) {
     const fullText = [lb.title, lb.summary].filter(Boolean).join("\n\n");
     const bill: Bill = {
-      id: lb.id,
+      id: Date.now(),
+      code: lb.id,
       title: lb.title,
       source: lb.source as Bill["source"],
+      score: 5,
+      tag: "Legislation",
       date: lb.date,
       summary: lb.summary,
       fullText,
@@ -86,9 +89,12 @@ export default function BillInput({
   function confirmPasted() {
     if (!text.trim()) return;
     const bill: Bill = {
-      id: `uploaded-${Date.now()}`,
+      id: Date.now(),
+      code: "Custom",
       title: text.trim().split("\n")[0].slice(0, 120) || "Uploaded Bill",
       source: "STATE",
+      score: 5,
+      tag: "Uploaded",
       date: new Date().toISOString().slice(0, 10),
       summary: text.trim().slice(0, 200),
       fullText: text.trim(),

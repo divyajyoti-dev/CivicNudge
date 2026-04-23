@@ -1,221 +1,628 @@
 "use client";
-import { useState } from "react";
-import { PersonaParams, Platform } from "@/lib/types";
+import { useState, useEffect } from "react";
+import { Bill, PersonaParams, Platform } from "@/lib/types";
 
-const OCCUPATIONS = [
-  "Student", "Renter", "Gig Worker", "Parent",
-  "Retiree", "Small Business Owner", "Union Member", "Other",
+const INCOME_MIN = 0;
+const INCOME_MAX = 200000;
+const INCOME_STEP = 5000;
+
+function formatIncome(val: number) {
+  if (val >= INCOME_MAX) return "$200k+";
+  if (val >= 1000) return `$${val / 1000}k`;
+  return `$${val}`;
+}
+
+const PERSONA_FIELDS = [
+  {
+    id: "ageGroup",
+    label: "Age Group",
+    chips: ["Under 18", "18–24", "25–34", "35–44", "45–54", "55–64", "65+"],
+  },
+  {
+    id: "familyType",
+    label: "Family Type",
+    chips: ["Single", "Single Parent", "Couple", "Family with kids", "Multigenerational", "Empty Nester"],
+  },
+  {
+    id: "occupation",
+    label: "Occupation",
+    chips: ["Student", "Full-time Employee", "Part-time Employee", "Gig Worker", "Self-employed", "Unemployed", "Retired", "Homemaker", "Union Member"],
+  },
+  {
+    id: "gender",
+    label: "Gender",
+    chips: ["Men", "Women", "Non-binary", "Prefer not to say"],
+  },
+  {
+    id: "sexualOrientation",
+    label: "Sexual Orientation",
+    chips: ["Straight", "Gay / Lesbian", "Bisexual", "Queer", "Prefer not to say"],
+  },
+  {
+    id: "maritalStatus",
+    label: "Marital Status",
+    chips: ["Single", "Married", "Divorced", "Domestic Partnership"],
+  },
+  {
+    id: "veteranStatus",
+    label: "Veteran Status",
+    chips: ["Veteran", "Active Duty", "Non-veteran"],
+  },
 ];
 
-const FAMILY_TYPES = [
-  "Single", "Single Parent", "Couple",
-  "Family with kids", "Multigenerational", "Other",
+const PLATFORM_CHIPS: { id: Platform; label: string }[] = [
+  { id: "story", label: "Story" },
+  { id: "image", label: "Image Post" },
+  { id: "audio", label: "Audio" },
+  { id: "sms", label: "SMS" },
+  { id: "email", label: "Email" },
 ];
 
-const PLATFORMS: { id: Platform; label: string; icon: string }[] = [
-  { id: "instagram", label: "Instagram", icon: "📸" },
-  { id: "twitter", label: "X / Twitter", icon: "𝕏" },
-  { id: "sms", label: "SMS", icon: "💬" },
-];
-
-export default function PersonaBuilder({
-  persona,
+function IncomeSlider({
+  value,
   onChange,
-  onGenerate,
-  loading,
 }: {
-  persona: PersonaParams;
-  onChange: (p: PersonaParams) => void;
-  onGenerate: () => void;
-  loading: boolean;
+  value: [number, number];
+  onChange: (v: [number, number]) => void;
 }) {
-  const [showExtra, setShowExtra] = useState(false);
+  const [low, high] = value;
+  const pct = (v: number) => ((v - INCOME_MIN) / (INCOME_MAX - INCOME_MIN)) * 100;
 
-  function togglePlatform(id: Platform) {
-    const next = persona.platforms.includes(id)
-      ? persona.platforms.filter((x) => x !== id)
-      : [...persona.platforms, id];
-    onChange({ ...persona, platforms: next });
-  }
+  const handleLow = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = Math.min(Number(e.target.value), high - INCOME_STEP);
+    onChange([v, high]);
+  };
+  const handleHigh = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = Math.max(Number(e.target.value), low + INCOME_STEP);
+    onChange([low, v]);
+  };
+
+  const sliderBase: React.CSSProperties = {
+    appearance: "none",
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    background: "transparent",
+    pointerEvents: "none",
+    outline: "none",
+    margin: 0,
+    padding: 0,
+  };
 
   return (
-    <div className="space-y-5">
-      {/* Natural language — primary input */}
-      <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1">
-          Who are you reaching?
-        </label>
-        <textarea
-          rows={2}
-          value={persona.naturalLanguage}
-          onChange={(e) => onChange({ ...persona, naturalLanguage: e.target.value })}
-          placeholder="e.g. Spanish-speaking single mothers in East Oakland who rent their homes"
-          className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>{formatIncome(low)}</span>
+        <span style={{ fontSize: 12, color: "#94a3b8" }}>Income Range</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>{formatIncome(high)}</span>
+      </div>
+      <div style={{ position: "relative", height: 28, display: "flex", alignItems: "center" }}>
+        <div style={{ position: "absolute", width: "100%", height: 4, background: "#e5e7eb", borderRadius: 2 }} />
+        <div
+          style={{
+            position: "absolute",
+            height: 4,
+            background: "#2563eb",
+            borderRadius: 2,
+            left: `${pct(low)}%`,
+            width: `${pct(high) - pct(low)}%`,
+          }}
         />
-      </div>
-
-      {/* Structured fields */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Occupation</label>
-          <select
-            value={persona.occupation[0] ?? ""}
-            onChange={(e) => onChange({ ...persona, occupation: [e.target.value], occupationOther: "" })}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-          >
-            <option value="">Select…</option>
-            {OCCUPATIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
-          {persona.occupation[0] === "Other" && (
-            <input
-              type="text"
-              value={persona.occupationOther}
-              onChange={(e) => onChange({ ...persona, occupationOther: e.target.value })}
-              placeholder="Describe occupation…"
-              className="mt-1.5 w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            />
-          )}
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Family Type</label>
-          <select
-            value={persona.familyType[0] ?? ""}
-            onChange={(e) => onChange({ ...persona, familyType: [e.target.value], familyTypeOther: "" })}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-          >
-            <option value="">Select…</option>
-            {FAMILY_TYPES.map((f) => <option key={f} value={f}>{f}</option>)}
-          </select>
-          {persona.familyType[0] === "Other" && (
-            <input
-              type="text"
-              value={persona.familyTypeOther}
-              onChange={(e) => onChange({ ...persona, familyTypeOther: e.target.value })}
-              placeholder="Describe family type…"
-              className="mt-1.5 w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            />
-          )}
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Location</label>
         <input
-          type="text"
-          value={persona.location}
-          onChange={(e) => onChange({ ...persona, location: e.target.value })}
-          placeholder="e.g. East Oakland, CA"
-          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          type="range"
+          className="income-thumb"
+          min={INCOME_MIN}
+          max={INCOME_MAX}
+          step={INCOME_STEP}
+          value={low}
+          onChange={handleLow}
+          style={{ ...sliderBase, zIndex: low > INCOME_MAX - INCOME_STEP ? 5 : 3 }}
+        />
+        <input
+          type="range"
+          className="income-thumb"
+          min={INCOME_MIN}
+          max={INCOME_MAX}
+          step={INCOME_STEP}
+          value={high}
+          onChange={handleHigh}
+          style={{ ...sliderBase, zIndex: 4 }}
         />
       </div>
+    </div>
+  );
+}
 
-      {/* Extra details — collapsed by default */}
-      <button
-        type="button"
-        onClick={() => setShowExtra(!showExtra)}
-        className="text-sm text-indigo-600 hover:underline"
+function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "7px 15px",
+        borderRadius: 20,
+        border: `1.5px solid ${active ? "#2563eb" : "rgba(0,0,0,0.09)"}`,
+        background: active ? "#eff6ff" : "#fff",
+        color: active ? "#1d4ed8" : "#475569",
+        fontSize: 13,
+        fontWeight: active ? 600 : 400,
+        cursor: "pointer",
+        transition: "all 0.15s",
+        letterSpacing: "-0.01em",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function FieldLabel({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color: "#94a3b8",
+        marginBottom: 8,
+        letterSpacing: "0.05em",
+        textTransform: "uppercase",
+        display: "flex",
+        gap: 6,
+        alignItems: "center",
+      }}
+    >
+      {children}
+      {optional && (
+        <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>optional</span>
+      )}
+    </div>
+  );
+}
+
+function ToggleSwitch({
+  value,
+  onChange,
+  leftLabel,
+  rightLabel,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+  leftLabel: string;
+  rightLabel: string;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <span
+        style={{
+          fontSize: 13,
+          color: !value ? "#1d4ed8" : "#94a3b8",
+          fontWeight: !value ? 600 : 400,
+          transition: "color 0.2s",
+        }}
       >
-        {showExtra ? "▾ Hide extra details" : "▸ Add more detail (demographic, language)"}
-      </button>
+        {leftLabel}
+      </span>
+      <div
+        onClick={() => onChange(!value)}
+        style={{
+          width: 44,
+          height: 24,
+          borderRadius: 12,
+          background: value ? "#2563eb" : "#e2e8f0",
+          position: "relative",
+          cursor: "pointer",
+          transition: "background 0.2s",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 9,
+            background: "#fff",
+            position: "absolute",
+            top: 3,
+            left: value ? 23 : 3,
+            transition: "left 0.2s",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+          }}
+        />
+      </div>
+      <span
+        style={{
+          fontSize: 13,
+          color: value ? "#1d4ed8" : "#94a3b8",
+          fontWeight: value ? 600 : 400,
+          transition: "color 0.2s",
+        }}
+      >
+        {rightLabel}
+      </span>
+    </div>
+  );
+}
 
-      {showExtra && (
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Demographic focus</label>
+function BillModal({ bill, onClose }: { bill: Bill; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.4)",
+        zIndex: 200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "#fff",
+          borderRadius: 18,
+          padding: "32px 36px",
+          maxWidth: 620,
+          width: "100%",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div>
+            <div
+              style={{
+                fontFamily: "var(--font-dm-mono), monospace",
+                fontSize: 11,
+                color: "#94a3b8",
+                marginBottom: 4,
+              }}
+            >
+              {bill.code}
+            </div>
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 20,
+                color: "#0f172a",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.3,
+              }}
+            >
+              {bill.title}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "#f1f5f9",
+              border: "none",
+              borderRadius: 8,
+              width: 32,
+              height: 32,
+              cursor: "pointer",
+              fontSize: 16,
+              color: "#64748b",
+              flexShrink: 0,
+              marginLeft: 16,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+        <div
+          style={{
+            fontSize: 14,
+            color: "#374151",
+            lineHeight: 1.85,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {bill.fullText}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface PersonaBuilderProps {
+  bill: Bill;
+  onGenerate: (params: PersonaParams) => void;
+  generating: boolean;
+}
+
+export default function PersonaBuilder({ bill, onGenerate, generating }: PersonaBuilderProps) {
+  const [selections, setSelections] = useState<Record<string, string[]>>(
+    Object.fromEntries(PERSONA_FIELDS.map(f => [f.id, []]))
+  );
+  const [incomeRange, setIncomeRange] = useState<[number, number]>([0, 200000]);
+  const [location, setLocation] = useState("");
+  const [platforms, setPlatforms] = useState<Platform[]>([]);
+  const [freeform, setFreeform] = useState("");
+  const [actionBias, setActionBias] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+
+  const toggleChip = (fieldId: string, chip: string) => {
+    setSelections(prev => ({
+      ...prev,
+      [fieldId]: prev[fieldId].includes(chip)
+        ? prev[fieldId].filter(x => x !== chip)
+        : [...prev[fieldId], chip],
+    }));
+  };
+
+  const togglePlatform = (id: Platform) => {
+    setPlatforms(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+
+  const buildDescription = () => {
+    if (freeform.trim()) return freeform.trim();
+    const parts: string[] = [];
+    if (location) parts.push(`Location: ${location}`);
+    const incomeStr = `${formatIncome(incomeRange[0])}–${formatIncome(incomeRange[1])}`;
+    if (incomeRange[0] > 0 || incomeRange[1] < INCOME_MAX)
+      parts.push(`Income: ${incomeStr}`);
+    PERSONA_FIELDS.forEach(f => {
+      if (selections[f.id].length > 0) parts.push(`${f.label}: ${selections[f.id].join(", ")}`);
+    });
+    parts.push(`Goal: ${actionBias ? "Drive to Action" : "Inform"}`);
+    return parts.join(" · ");
+  };
+
+  const hasPersona =
+    location || freeform.trim() || PERSONA_FIELDS.some(f => selections[f.id].length > 0);
+  const canGenerate = !!hasPersona && platforms.length > 0;
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 14px",
+    border: "1.5px solid rgba(0,0,0,0.09)",
+    borderRadius: 10,
+    fontSize: 13,
+    color: "#0f172a",
+    background: "#fff",
+    outline: "none",
+    boxSizing: "border-box",
+    letterSpacing: "-0.01em",
+    transition: "border-color 0.15s",
+  };
+
+  return (
+    <div style={{ maxWidth: 640, margin: "0 auto", paddingBottom: 100 }}>
+      {/* Selected bill bar */}
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 14,
+          padding: "16px 20px",
+          marginBottom: 24,
+          boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+          display: "flex",
+          gap: 16,
+          alignItems: "center",
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              fontFamily: "var(--font-dm-mono), monospace",
+              fontSize: 11,
+              color: "#94a3b8",
+              marginBottom: 2,
+            }}
+          >
+            {bill.code}
+          </div>
+          <div
+            onClick={() => setShowModal(true)}
+            style={{
+              fontWeight: 700,
+              fontSize: 14,
+              color: "#2563eb",
+              letterSpacing: "-0.02em",
+              cursor: "pointer",
+              textDecoration: "underline",
+              textDecorationStyle: "dotted",
+              textUnderlineOffset: 3,
+            }}
+          >
+            {bill.title}
+          </div>
+        </div>
+      </div>
+
+      {/* Persona form card */}
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          padding: "26px 28px",
+          boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+          marginBottom: 14,
+        }}
+      >
+        {/* Location */}
+        <div style={{ marginBottom: 24 }}>
+          <FieldLabel>Location</FieldLabel>
           <input
-            type="text"
-            value={persona.demographicFocus}
-            onChange={(e) => onChange({ ...persona, demographicFocus: e.target.value })}
-            placeholder="e.g. Spanish-speaking, AAPI seniors, formerly incarcerated"
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            value={location}
+            onChange={e => setLocation(e.target.value)}
+            placeholder="e.g. East Oakland, CA or California"
+            style={inputStyle}
+            onFocus={e => (e.target.style.borderColor = "#2563eb")}
+            onBlur={e => (e.target.style.borderColor = "rgba(0,0,0,0.09)")}
           />
         </div>
-      )}
 
-      {/* Tone toggle */}
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tone</span>
-        <div className="flex items-center gap-2 ml-2">
-          <span className={`text-sm ${persona.actionBias === "inform" ? "text-slate-800 font-semibold" : "text-slate-400"}`}>Inform</span>
-          <button
-            type="button"
-            onClick={() => onChange({ ...persona, actionBias: persona.actionBias === "inform" ? "action" : "inform" })}
-            className={`relative w-11 h-6 rounded-full transition-colors ${
-              persona.actionBias === "action" ? "bg-indigo-600" : "bg-slate-300"
-            }`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-              persona.actionBias === "action" ? "translate-x-5" : ""
-            }`} />
-          </button>
-          <span className={`text-sm ${persona.actionBias === "action" ? "text-indigo-600 font-semibold" : "text-slate-400"}`}>Drive to Action</span>
+        {/* Income slider */}
+        <div style={{ marginBottom: 24 }}>
+          <FieldLabel>Income</FieldLabel>
+          <div style={{ background: "#f8fafc", borderRadius: 10, padding: "16px 18px" }}>
+            <IncomeSlider value={incomeRange} onChange={setIncomeRange} />
+          </div>
+        </div>
+
+        {/* Chip fields */}
+        {PERSONA_FIELDS.map(field => (
+          <div key={field.id} style={{ marginBottom: 22 }}>
+            <FieldLabel>{field.label}</FieldLabel>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {field.chips.map(chip => (
+                <Chip
+                  key={chip}
+                  label={chip}
+                  active={selections[field.id].includes(chip)}
+                  onClick={() => toggleChip(field.id, chip)}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Other information */}
+        <div style={{ marginBottom: 24 }}>
+          <FieldLabel optional>Other Information</FieldLabel>
+          <textarea
+            value={freeform}
+            onChange={e => setFreeform(e.target.value)}
+            placeholder="Any other details — language, religion, neighborhood, specific concerns…"
+            rows={3}
+            style={{
+              ...inputStyle,
+              resize: "vertical",
+              lineHeight: 1.6,
+              borderColor: freeform ? "#2563eb" : "rgba(0,0,0,0.09)",
+            }}
+          />
+        </div>
+
+        {/* Action Goal + Platforms */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            paddingTop: 20,
+            borderTop: "1px solid rgba(0,0,0,0.05)",
+            flexWrap: "wrap",
+            gap: 20,
+          }}
+        >
+          <div>
+            <FieldLabel>Action Goal</FieldLabel>
+            <ToggleSwitch
+              value={actionBias}
+              onChange={setActionBias}
+              leftLabel="Inform"
+              rightLabel="Drive to Action"
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <FieldLabel>Platforms</FieldLabel>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {PLATFORM_CHIPS.map(p => (
+                <Chip
+                  key={p.id}
+                  label={p.label}
+                  active={platforms.includes(p.id)}
+                  onClick={() => togglePlatform(p.id)}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Content mode */}
-      <div>
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-2">Content Mode</span>
-        <div className="flex gap-2">
-          {(["educate", "advocate"] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => onChange({ ...persona, contentMode: mode })}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-all ${
-                persona.contentMode === mode
-                  ? "bg-indigo-600 text-white border-indigo-600"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
-              }`}
-            >
-              {mode === "educate" ? "📚 General Education" : "📣 Campaign Advocacy"}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-slate-400 mt-1.5">
-          {persona.contentMode === "advocate"
-            ? "Advocacy content will be clearly labeled in the output."
-            : "Neutral, factual tone. No calls to action."}
-        </p>
-      </div>
-
-      {/* Platforms */}
-      <div>
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-2">Output Platforms</span>
-        <div className="flex gap-2 flex-wrap">
-          {PLATFORMS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => togglePlatform(p.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
-                persona.platforms.includes(p.id)
-                  ? "bg-indigo-600 text-white border-indigo-600"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
-              }`}
-            >
-              <span>{p.icon}</span> {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <button
-        onClick={onGenerate}
-        disabled={loading || persona.platforms.length === 0}
-        className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-base"
+      {/* Sticky generate button */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: "linear-gradient(to top, #f6f5f2 60%, transparent)",
+          padding: "20px 24px 28px",
+          zIndex: 50,
+          display: "flex",
+          justifyContent: "center",
+        }}
       >
-        {loading ? (
-          <>
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
-            Generating with Claude…
-          </>
-        ) : (
-          "Generate Campaign ✦"
-        )}
-      </button>
+        <div style={{ position: "relative", maxWidth: 520, width: "100%", display: "flex", justifyContent: "center" }}>
+          <button
+            onClick={() => {
+              if (canGenerate && !generating) {
+                onGenerate({
+                  selections,
+                  incomeRange,
+                  location,
+                  platforms,
+                  freeform,
+                  actionBias,
+                  description: buildDescription(),
+                });
+              }
+            }}
+            disabled={!canGenerate || generating}
+            style={{
+              padding: "15px 40px",
+              maxWidth: 520,
+              width: "100%",
+              background: !canGenerate ? "#e5e7eb" : generating ? "#1e40af" : "#2563eb",
+              color: !canGenerate ? "#9ca3af" : "#fff",
+              border: "none",
+              borderRadius: 12,
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: !canGenerate || generating ? "default" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              letterSpacing: "-0.02em",
+              boxShadow: canGenerate && !generating ? "0 4px 20px rgba(37,99,235,0.32)" : "none",
+              transition: "all 0.2s",
+            }}
+          >
+            {generating ? (
+              <>
+                <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span>
+                Claude is analyzing…
+              </>
+            ) : (
+              <>
+                Generate Campaign{" "}
+                <span
+                  style={{
+                    fontSize: 11,
+                    opacity: 0.6,
+                    fontWeight: 400,
+                    background: "rgba(255,255,255,0.15)",
+                    padding: "3px 10px",
+                    borderRadius: 20,
+                  }}
+                >
+                  Powered by Claude
+                </span>
+              </>
+            )}
+          </button>
+          {!canGenerate && (
+            <div style={{ position: "absolute", top: -20, fontSize: 12, color: "#94a3b8" }}>
+              {!hasPersona ? "Describe your community to continue" : "Select at least one platform"}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showModal && <BillModal bill={bill} onClose={() => setShowModal(false)} />}
     </div>
   );
 }

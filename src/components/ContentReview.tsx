@@ -1,439 +1,581 @@
 "use client";
-import { useRef, useState } from "react";
-import { Bill, GeneratedCampaign, Platform } from "@/lib/types";
+import { useState } from "react";
+import {
+  Bill,
+  PersonaParams,
+  GeneratedContent,
+  Platform,
+  StoryContent,
+  ImageContent,
+  AudioContent,
+  SMSContent,
+  EmailContent,
+} from "@/lib/types";
 
-type MediaTab = "image" | "audio" | "music" | "video";
+const PLATFORM_LABELS: Record<Platform, string> = {
+  story: "Story",
+  image: "Image Post",
+  audio: "Audio",
+  sms: "SMS",
+  email: "Email",
+};
 
-function MediaPanel({
-  campaign,
+function ContentCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px", marginBottom: 14 }}>
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+          color: "#94a3b8",
+          textTransform: "uppercase",
+          letterSpacing: "0.07em",
+          marginBottom: 10,
+        }}
+      >
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function EditableBlock({ value: init, rows = 3 }: { value: string; rows?: number }) {
+  const [val, setVal] = useState(init || "");
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <textarea
+        autoFocus
+        value={val}
+        rows={rows}
+        onChange={e => setVal(e.target.value)}
+        onBlur={() => setEditing(false)}
+        style={{
+          width: "100%",
+          border: "1.5px solid #2563eb",
+          borderRadius: 8,
+          padding: "8px 10px",
+          fontSize: 13,
+          resize: "vertical",
+          outline: "none",
+          boxSizing: "border-box",
+          lineHeight: 1.6,
+          background: "#fff",
+        }}
+      />
+    );
+  }
+  return (
+    <p
+      onClick={() => setEditing(true)}
+      style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.7, cursor: "text" }}
+    >
+      {val || <span style={{ color: "#cbd5e1" }}>No content</span>}
+      {val && <span style={{ fontSize: 10, color: "#cbd5e1", marginLeft: 4 }}>✏</span>}
+    </p>
+  );
+}
+
+function StorySlide({
+  text,
+  bg,
+  index,
+  total,
 }: {
-  campaign: GeneratedCampaign;
+  text: string;
+  bg: string;
+  index: number;
+  total: number;
 }) {
-  const [activeMedia, setActiveMedia] = useState<MediaTab>("image");
-  const [imageData, setImageData] = useState<{ base64: string; mime: string } | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [musicUrl, setMusicUrl] = useState<string | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [videoStatus, setVideoStatus] = useState<"idle" | "pending" | "done" | "failed">("idle");
-  const [loadingMedia, setLoadingMedia] = useState<MediaTab | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const contextText = campaign.instagram?.slide2 ?? campaign.tweet?.[0] ?? "";
-  const hookText = campaign.instagram?.slide1 ?? "";
-
-  async function generateImage() {
-    setLoadingMedia("image");
-    try {
-      const res = await fetch("/api/generate-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: `Civic advocacy graphic. ${hookText}. Clean minimal design, bold typography, empowering tone, 9:16 vertical format.`,
-        }),
-      });
-      const data = await res.json();
-      if (data.imageBase64) setImageData({ base64: data.imageBase64, mime: data.mimeType });
-    } finally {
-      setLoadingMedia(null);
-    }
-  }
-
-  async function generateAudio() {
-    setLoadingMedia("audio");
-    try {
-      const res = await fetch("/api/generate-audio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: contextText }),
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        setAudioUrl(URL.createObjectURL(blob));
-      }
-    } finally {
-      setLoadingMedia(null);
-    }
-  }
-
-  async function generateMusic() {
-    setLoadingMedia("music");
-    try {
-      const res = await fetch("/api/generate-music", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: `Uplifting civic background music, 30 seconds, community empowerment theme, hopeful and energetic`,
-        }),
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        setMusicUrl(URL.createObjectURL(blob));
-      }
-    } finally {
-      setLoadingMedia(null);
-    }
-  }
-
-  async function generateVideo() {
-    setLoadingMedia("video");
-    setVideoStatus("pending");
-    try {
-      const res = await fetch("/api/generate-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: `Short vertical video (9:16), civic empowerment theme. ${hookText}. Uplifting, community-focused, 5 seconds.`,
-        }),
-      });
-      const data = await res.json();
-      if (!data.taskId) { setVideoStatus("failed"); return; }
-
-      pollRef.current = setInterval(async () => {
-        const poll = await fetch(`/api/generate-video?taskId=${data.taskId}`);
-        const pollData = await poll.json();
-        if (pollData.status === "succeed" && pollData.videoUrl) {
-          setVideoUrl(pollData.videoUrl);
-          setVideoStatus("done");
-          if (pollRef.current) clearInterval(pollRef.current);
-        } else if (pollData.status === "failed") {
-          setVideoStatus("failed");
-          if (pollRef.current) clearInterval(pollRef.current);
-        }
-      }, 5000);
-    } finally {
-      setLoadingMedia(null);
-    }
-  }
-
-  const MEDIA_TABS: { id: MediaTab; label: string; icon: string }[] = [
-    { id: "image", label: "Image", icon: "🎨" },
-    { id: "audio", label: "Narration", icon: "🔊" },
-    { id: "music", label: "Music", icon: "🎵" },
-    { id: "video", label: "Video", icon: "🎬" },
-  ];
+  const [val, setVal] = useState(text);
+  const [editing, setEditing] = useState(false);
+  const labels = ["Hook", "Context", "CTA"];
 
   return (
-    <div className="border-t border-slate-100 pt-4 space-y-3">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Media Generation</p>
-      <div className="flex gap-1">
-        {MEDIA_TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActiveMedia(t.id)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              activeMedia === t.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
-
-      {activeMedia === "image" && (
-        <div className="space-y-3">
-          {!imageData && (
-            <button
-              onClick={generateImage}
-              disabled={loadingMedia === "image"}
-              className="px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-lg hover:bg-slate-900 disabled:opacity-50 flex items-center gap-2"
-            >
-              {loadingMedia === "image" ? <><svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Generating…</> : "🎨 Generate Graphic"}
-            </button>
-          )}
-          {imageData && (
-            <div className="space-y-2">
-              <img src={`data:${imageData.mime};base64,${imageData.base64}`} alt="Generated graphic" className="max-h-64 rounded-xl border border-slate-200 mx-auto block" />
-              <div className="flex gap-2">
-                <a href={`data:${imageData.mime};base64,${imageData.base64}`} download="campaign-graphic.png" className="text-sm text-indigo-600 hover:underline">↓ Download</a>
-                <button onClick={() => setImageData(null)} className="text-sm text-slate-400 hover:underline">Regenerate</button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeMedia === "audio" && (
-        <div className="space-y-3">
-          {!audioUrl && (
-            <button
-              onClick={generateAudio}
-              disabled={loadingMedia === "audio"}
-              className="px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-lg hover:bg-slate-900 disabled:opacity-50 flex items-center gap-2"
-            >
-              {loadingMedia === "audio" ? <><svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Generating…</> : "🔊 Generate Narration"}
-            </button>
-          )}
-          {audioUrl && (
-            <div className="space-y-2">
-              <audio controls src={audioUrl} className="w-full" />
-              <p className="text-xs text-slate-400">Suitable for phone call campaigns and audio ads</p>
-              <div className="flex gap-2">
-                <a href={audioUrl} download="narration.mp3" className="text-sm text-indigo-600 hover:underline">↓ Download MP3</a>
-                <button onClick={() => setAudioUrl(null)} className="text-sm text-slate-400 hover:underline">Regenerate</button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeMedia === "music" && (
-        <div className="space-y-3">
-          {!musicUrl && (
-            <button
-              onClick={generateMusic}
-              disabled={loadingMedia === "music"}
-              className="px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-lg hover:bg-slate-900 disabled:opacity-50 flex items-center gap-2"
-            >
-              {loadingMedia === "music" ? <><svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Generating…</> : "🎵 Generate Music"}
-            </button>
-          )}
-          {musicUrl && (
-            <div className="space-y-2">
-              <audio controls src={musicUrl} className="w-full" />
-              <p className="text-xs text-slate-400">30-second background track — export to Spotify ads or social video</p>
-              <div className="flex gap-2">
-                <a href={musicUrl} download="background-music.mp3" className="text-sm text-indigo-600 hover:underline">↓ Download MP3</a>
-                <button onClick={() => setMusicUrl(null)} className="text-sm text-slate-400 hover:underline">Regenerate</button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeMedia === "video" && (
-        <div className="space-y-3">
-          {videoStatus === "idle" && (
-            <button
-              onClick={generateVideo}
-              disabled={loadingMedia === "video"}
-              className="px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-lg hover:bg-slate-900 disabled:opacity-50 flex items-center gap-2"
-            >
-              🎬 Generate Video
-            </button>
-          )}
-          {videoStatus === "pending" && (
-            <div className="flex items-center gap-2 text-sm text-amber-600">
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-              Generating video — usually ~30s. Polling every 5s…
-            </div>
-          )}
-          {videoStatus === "done" && videoUrl && (
-            <div className="space-y-2">
-              <video controls src={videoUrl} className="max-h-64 rounded-xl mx-auto block" />
-              <a href={videoUrl} download="campaign-video.mp4" className="text-sm text-indigo-600 hover:underline">↓ Download MP4</a>
-            </div>
-          )}
-          {videoStatus === "failed" && (
-            <div className="text-sm text-red-500">
-              Video generation failed. <button onClick={() => setVideoStatus("idle")} className="underline">Try again</button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function InstagramPreview({ content }: { content: GeneratedCampaign["instagram"] }) {
-  const [editedSlide1, setEditedSlide1] = useState(content.slide1);
-  const [editedSlide2, setEditedSlide2] = useState(content.slide2);
-  const [editedSlide3, setEditedSlide3] = useState(content.slide3);
-  const [editedCaption, setEditedCaption] = useState(content.caption);
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          { label: "Slide 1 — Hook", value: editedSlide1, set: setEditedSlide1, bg: "bg-indigo-600" },
-          { label: "Slide 2 — Context", value: editedSlide2, set: setEditedSlide2, bg: "bg-slate-700" },
-          { label: "Slide 3 — Action", value: editedSlide3, set: setEditedSlide3, bg: "bg-emerald-600" },
-        ].map(({ label, value, set, bg }) => (
-          <div key={label} className="space-y-1">
-            <div className={`${bg} text-white rounded-xl aspect-[9/16] flex items-center justify-center p-3`}>
-              <p className="text-xs text-center font-medium leading-relaxed">{value}</p>
-            </div>
-            <p className="text-xs text-slate-400 text-center">{label}</p>
-            <textarea
-              rows={2}
-              value={value}
-              onChange={(e) => set(e.target.value)}
-              className="w-full text-xs px-2 py-1 border border-slate-200 rounded resize-none focus:outline-none focus:border-indigo-400"
-            />
-          </div>
-        ))}
-      </div>
-      <div>
-        <p className="text-xs text-slate-500 font-semibold mb-1">Caption</p>
-        <textarea
-          rows={2}
-          value={editedCaption}
-          onChange={(e) => setEditedCaption(e.target.value)}
-          className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg resize-none focus:outline-none focus:border-indigo-400"
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div
+        onClick={() => !editing && setEditing(true)}
+        style={{
+          width: 124,
+          height: 216,
+          borderRadius: 18,
+          background: bg,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+          padding: 12,
+          position: "relative",
+          overflow: "hidden",
+          boxShadow: "0 8px 28px rgba(0,0,0,0.12)",
+          cursor: "pointer",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            opacity: 0.04,
+            backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
+            backgroundSize: "14px 14px",
+          }}
         />
-      </div>
-    </div>
-  );
-}
-
-function TwitterPreview({ tweets }: { tweets: string[] }) {
-  const [edited, setEdited] = useState(tweets);
-  return (
-    <div className="space-y-3">
-      {edited.map((tweet, i) => (
-        <div key={i} className="border border-slate-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-sm font-bold text-indigo-600">
-              CN
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-800">CivicNudge</p>
-              <p className="text-xs text-slate-400">@civicnudge</p>
-            </div>
-            <span className="ml-auto text-xs text-slate-400">{i + 1}/{edited.length}</span>
-          </div>
-          <textarea
-            rows={3}
-            value={tweet}
-            onChange={(e) => {
-              const next = [...edited];
-              next[i] = e.target.value;
-              setEdited(next);
-            }}
-            className="w-full text-sm text-slate-700 resize-none focus:outline-none"
-          />
-          <p className="text-xs text-slate-400 text-right">{tweet.length}/280</p>
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            right: 12,
+            fontFamily: "var(--font-dm-mono), monospace",
+            fontSize: 9,
+            color: "rgba(255,255,255,0.3)",
+          }}
+        >
+          {index + 1}/{total}
         </div>
-      ))}
+        {editing ? (
+          <textarea
+            autoFocus
+            value={val}
+            rows={4}
+            onChange={e => setVal(e.target.value)}
+            onBlur={() => setEditing(false)}
+            style={{
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.3)",
+              borderRadius: 8,
+              color: "#fff",
+              fontSize: 11,
+              lineHeight: 1.5,
+              resize: "none",
+              outline: "none",
+              padding: "6px 8px",
+              width: "100%",
+              boxSizing: "border-box",
+            }}
+          />
+        ) : (
+          <p style={{ margin: 0, color: "#fff", fontSize: 11, lineHeight: 1.6, fontWeight: 500 }}>{val}</p>
+        )}
+      </div>
+      <span
+        style={{
+          fontSize: 10,
+          color: "#94a3b8",
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.07em",
+        }}
+      >
+        {labels[index]}
+      </span>
     </div>
   );
 }
 
-function SMSPreview({ sms, sms_es }: { sms: string; sms_es?: string }) {
-  const [lang, setLang] = useState<"en" | "es">("en");
-  const [editedEn, setEditedEn] = useState(sms);
-  const [editedEs, setEditedEs] = useState(sms_es ?? "");
-  const current = lang === "en" ? editedEn : editedEs;
+function StoryTab({ content }: { content: StoryContent }) {
+  const bgs = [
+    "linear-gradient(160deg, #1e293b, #334155)",
+    "linear-gradient(160deg, #0c4a6e, #0369a1)",
+    "linear-gradient(160deg, #1e1b4b, #3730a3)",
+  ];
+  const slides = [content.slide1, content.slide2, content.slide3].filter(Boolean);
 
   return (
-    <div className="space-y-4">
-      {sms_es && (
-        <div className="flex gap-2">
-          {(["en", "es"] as const).map((l) => (
+    <div>
+      <div style={{ display: "flex", gap: 18, justifyContent: "center", marginBottom: 20 }}>
+        {slides.map((text, i) => (
+          <StorySlide key={i} text={text} bg={bgs[i % bgs.length]} index={i} total={slides.length} />
+        ))}
+      </div>
+      {content.caption && (
+        <ContentCard title="Caption">
+          <EditableBlock value={content.caption} rows={2} />
+        </ContentCard>
+      )}
+    </div>
+  );
+}
+
+function ImageTab({ content }: { content: ImageContent }) {
+  return (
+    <div>
+      <div
+        style={{
+          background: "#1e293b",
+          borderRadius: 14,
+          aspectRatio: "1/1",
+          maxWidth: 280,
+          margin: "0 auto 20px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+          padding: 20,
+          position: "relative",
+          overflow: "hidden",
+          boxShadow: "0 8px 28px rgba(0,0,0,0.12)",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            opacity: 0.05,
+            backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
+            backgroundSize: "18px 18px",
+          }}
+        />
+        <p
+          style={{
+            margin: 0,
+            color: "#fff",
+            fontSize: 16,
+            fontWeight: 800,
+            lineHeight: 1.3,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {content.headline}
+        </p>
+        {content.body && (
+          <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.7)", fontSize: 12, lineHeight: 1.5 }}>
+            {content.body}
+          </p>
+        )}
+      </div>
+      {content.caption && (
+        <ContentCard title="Caption">
+          <EditableBlock value={content.caption} rows={2} />
+        </ContentCard>
+      )}
+    </div>
+  );
+}
+
+function AudioTab({ content }: { content: AudioContent }) {
+  return (
+    <div>
+      <ContentCard title="Intro">
+        <EditableBlock value={content.intro} rows={3} />
+      </ContentCard>
+      <ContentCard title="Body">
+        <EditableBlock value={content.body} rows={5} />
+      </ContentCard>
+      <ContentCard title="CTA">
+        <EditableBlock value={content.cta} rows={2} />
+      </ContentCard>
+    </div>
+  );
+}
+
+function SMSTab({ content }: { content: SMSContent }) {
+  const [lang, setLang] = useState<"en" | "es">("en");
+  const [textEn, setTextEn] = useState(content.text || "");
+  const [textEs, setTextEs] = useState(content.text_es || "");
+  const [editing, setEditing] = useState(false);
+  const current = lang === "en" ? textEn : textEs;
+  const setCurrent = lang === "en" ? setTextEn : setTextEs;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+        <div
+          style={{
+            width: 252,
+            background: "#1a1a1a",
+            borderRadius: 32,
+            padding: "26px 14px 18px",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+            <div style={{ width: 48, height: 4, background: "#333", borderRadius: 2 }} />
+          </div>
+          <div style={{ background: "#f1f5f9", borderRadius: 18, padding: "14px 12px", minHeight: 90 }}>
+            <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "center", marginBottom: 10 }}>
+              Today 9:41 AM
+            </div>
+            {current ? (
+              <div
+                style={{
+                  background: "#2563eb",
+                  color: "#fff",
+                  borderRadius: "16px 16px 4px 16px",
+                  padding: "10px 13px",
+                  fontSize: 12,
+                  lineHeight: 1.6,
+                  maxWidth: "88%",
+                  wordBreak: "break-word",
+                }}
+              >
+                {editing ? (
+                  <textarea
+                    autoFocus
+                    value={current}
+                    rows={4}
+                    onChange={e => setCurrent(e.target.value)}
+                    onBlur={() => setEditing(false)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#fff",
+                      fontSize: 12,
+                      outline: "none",
+                      width: "100%",
+                      resize: "none",
+                      lineHeight: 1.6,
+                      padding: 0,
+                    }}
+                  />
+                ) : (
+                  <span onClick={() => setEditing(true)} style={{ cursor: "text" }}>
+                    {current}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div style={{ color: "#94a3b8", fontSize: 12, textAlign: "center", padding: 12 }}>
+                No content for this language
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "8px 0",
+        }}
+      >
+        <div style={{ display: "flex", gap: 8 }}>
+          {(["en", "es"] as const).map(l => (
             <button
               key={l}
               onClick={() => setLang(l)}
-              className={`px-3 py-1 text-sm font-medium rounded-full ${
-                lang === l ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"
-              }`}
+              style={{
+                padding: "6px 16px",
+                borderRadius: 20,
+                border: `1.5px solid ${lang === l ? "#2563eb" : "rgba(0,0,0,0.1)"}`,
+                background: lang === l ? "#eff6ff" : "#fff",
+                color: lang === l ? "#1d4ed8" : "#64748b",
+                fontSize: 12,
+                fontWeight: lang === l ? 600 : 400,
+                cursor: "pointer",
+              }}
             >
               {l === "en" ? "English" : "Español"}
             </button>
           ))}
         </div>
-      )}
-      <div className="bg-slate-100 rounded-2xl p-4 max-w-xs mx-auto">
-        <div className="bg-indigo-500 text-white text-sm px-4 py-3 rounded-2xl rounded-bl-sm">
-          {current}
-        </div>
-        <p className="text-xs text-slate-400 mt-2 text-right">{current.length}/160 chars</p>
+        <span
+          style={{
+            fontFamily: "var(--font-dm-mono), monospace",
+            fontSize: 12,
+            color: current.length > 160 ? "#dc2626" : "#94a3b8",
+          }}
+        >
+          {current.length}/160
+        </span>
       </div>
-      <textarea
-        rows={3}
-        value={current}
-        onChange={(e) => lang === "en" ? setEditedEn(e.target.value) : setEditedEs(e.target.value)}
-        className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg resize-none focus:outline-none focus:border-indigo-400"
-      />
     </div>
   );
 }
 
+function EmailTab({ content }: { content: EmailContent }) {
+  return (
+    <div>
+      <ContentCard title="Subject Line">
+        <EditableBlock value={content.subject} rows={1} />
+      </ContentCard>
+      <ContentCard title="Preview Text">
+        <EditableBlock value={content.preview} rows={1} />
+      </ContentCard>
+      <ContentCard title="Body">
+        <EditableBlock value={content.body} rows={6} />
+      </ContentCard>
+    </div>
+  );
+}
+
+interface ContentReviewProps {
+  bill: Bill;
+  persona: PersonaParams;
+  content: GeneratedContent;
+  onApprove: () => void;
+  approved: boolean;
+}
+
 export default function ContentReview({
   bill,
-  campaign,
-  platforms,
-  contentMode,
+  persona,
+  content,
   onApprove,
-}: {
-  bill: Bill;
-  campaign: GeneratedCampaign;
-  platforms: Platform[];
-  contentMode?: "educate" | "advocate";
-  onApprove: () => void;
-}) {
-  const tabs = platforms.filter((p) =>
-    (p === "instagram" && campaign.instagram) ||
-    (p === "twitter" && campaign.tweet?.length) ||
-    (p === "sms" && campaign.sms)
-  );
-  const [activeTab, setActiveTab] = useState<Platform>(tabs[0]);
-  const [approved, setApproved] = useState(false);
+  approved,
+}: ContentReviewProps) {
+  const platforms = persona.platforms || [];
+  const [activeTab, setActiveTab] = useState<Platform>(platforms[0] || "story");
 
-  const TAB_LABELS: Record<Platform, string> = {
-    instagram: "📸 Instagram",
-    twitter: "𝕏 Twitter",
-    sms: "💬 SMS",
+  const renderContent = (platform: Platform) => {
+    const pc = content.platforms?.[platform];
+    if (!pc)
+      return (
+        <div style={{ textAlign: "center", padding: "40px 0", color: "#94a3b8", fontSize: 13 }}>
+          No content generated for this platform.
+        </div>
+      );
+    if (platform === "story") return <StoryTab content={pc as StoryContent} />;
+    if (platform === "image") return <ImageTab content={pc as ImageContent} />;
+    if (platform === "audio") return <AudioTab content={pc as AudioContent} />;
+    if (platform === "sms") return <SMSTab content={pc as SMSContent} />;
+    if (platform === "email") return <EmailTab content={pc as EmailContent} />;
+    return null;
   };
 
-  function handleApprove() {
-    setApproved(true);
-    onApprove();
-  }
-
   return (
-    <div className="space-y-4">
-      {contentMode === "advocate" && (
-        <div className="bg-amber-50 border border-amber-300 text-amber-700 text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 mb-2">
-          <span>⚠</span>
-          <span>Advocacy content — represents your organization&apos;s position. A neutral version is also available.</span>
-        </div>
-      )}
-
-      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-indigo-800">{bill.title}</p>
-          <span className="text-sm font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">
-            {campaign.relevanceScore}/10
-          </span>
-        </div>
-        <p className="text-sm text-indigo-700 mt-1">{campaign.relevanceSummary}</p>
-      </div>
-
-      <div className="flex gap-1 border-b border-slate-200">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab
-                ? "border-b-2 border-indigo-600 text-indigo-600"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
+    <div style={{ maxWidth: 820, margin: "0 auto" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "252px 1fr",
+          gap: 20,
+          alignItems: "start",
+        }}
+      >
+        {/* Left column */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 14,
+              padding: 20,
+              boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+            }}
           >
-            {TAB_LABELS[tab]}
+            <div
+              style={{
+                fontFamily: "var(--font-dm-mono), monospace",
+                fontSize: 10,
+                color: "#94a3b8",
+                marginBottom: 4,
+              }}
+            >
+              {bill.code}
+            </div>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: 14,
+                color: "#0f172a",
+                marginBottom: 14,
+                letterSpacing: "-0.02em",
+                lineHeight: 1.3,
+              }}
+            >
+              {bill.title}
+            </div>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 12,
+                color: "#475569",
+                lineHeight: 1.7,
+                background: "#f8fafc",
+                borderRadius: 8,
+                padding: "10px 12px",
+              }}
+            >
+              {content.relevanceSummary}
+            </p>
+          </div>
+
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 14,
+              padding: "16px 18px",
+              boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: "#94a3b8",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                marginBottom: 8,
+              }}
+            >
+              Community
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: "#475569", lineHeight: 1.7 }}>
+              {persona.description}
+            </p>
+          </div>
+
+          <button
+            onClick={onApprove}
+            disabled={approved}
+            style={{
+              padding: 14,
+              borderRadius: 12,
+              background: approved ? "#f0fdf4" : "#0f172a",
+              color: approved ? "#16a34a" : "#fff",
+              border: approved ? "1.5px solid #bbf7d0" : "none",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: approved ? "default" : "pointer",
+              letterSpacing: "-0.02em",
+              transition: "all 0.3s",
+              boxShadow: approved ? "none" : "0 4px 14px rgba(0,0,0,0.18)",
+              width: "100%",
+            }}
+          >
+            {approved ? "✓ Campaign Queued" : "Approve & Distribute →"}
           </button>
-        ))}
-      </div>
-
-      <div className="min-h-[300px]">
-        {activeTab === "instagram" && <InstagramPreview content={campaign.instagram} />}
-        {activeTab === "twitter" && <TwitterPreview tweets={campaign.tweet} />}
-        {activeTab === "sms" && <SMSPreview sms={campaign.sms} sms_es={campaign.sms_es} />}
-      </div>
-
-      <MediaPanel campaign={campaign} />
-
-      {approved ? (
-        <div className="bg-emerald-50 border border-emerald-300 text-emerald-700 font-semibold text-center py-3 rounded-xl">
-          ✓ Campaign queued for 10,000+ recipients
+          {approved && (
+            <p style={{ textAlign: "center", fontSize: 12, color: "#64748b", margin: 0 }}>
+              Queued for <strong>10,000 recipients</strong>
+            </p>
+          )}
         </div>
-      ) : (
-        <button
-          onClick={handleApprove}
-          className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors"
+
+        {/* Right column */}
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: 14,
+            padding: "20px 22px",
+            boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+          }}
         >
-          Approve & Distribute →
-        </button>
-      )}
+          <div style={{ display: "flex", gap: 4, marginBottom: 20, flexWrap: "wrap" }}>
+            {platforms.map(p => (
+              <button
+                key={p}
+                onClick={() => setActiveTab(p)}
+                style={{
+                  padding: "7px 16px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: activeTab === p ? "#f1f5f9" : "transparent",
+                  color: activeTab === p ? "#0f172a" : "#94a3b8",
+                  fontSize: 13,
+                  fontWeight: activeTab === p ? 600 : 400,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                {PLATFORM_LABELS[p] || p}
+              </button>
+            ))}
+          </div>
+          {renderContent(activeTab)}
+        </div>
+      </div>
     </div>
   );
 }
