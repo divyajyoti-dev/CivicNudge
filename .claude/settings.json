@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [[ \"$file\" == */src/* ]] && cd /Users/divyajyoti/dev/CivicNudge && node scripts/security-scan.mjs || true",
+            "timeout": 30,
+            "statusMessage": "Running security scan…",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "file=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [[ \"$file\" == */src/app/api/* ]] && cd /Users/divyajyoti/dev/CivicNudge && PORT=4000 node scripts/verify.mjs || true",
+            "timeout": 90,
+            "statusMessage": "Running E2E verification…",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}
